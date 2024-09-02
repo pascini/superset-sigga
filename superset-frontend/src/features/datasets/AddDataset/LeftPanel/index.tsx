@@ -145,6 +145,22 @@ export default function LeftPanel({
       });
     }
   };
+  const setView = (viewName: string) => {
+    setDataset({
+      type: DatasetActionType.SelectView,
+      payload: { name: 'view_name', value: viewName },
+    });
+  };
+  useEffect(() => {
+    const currentUserSelectedDb = getItem(
+      LocalStorageKeys.Database,
+      null,
+    ) as DatabaseObject;
+    if (currentUserSelectedDb) {
+      setDatabase(currentUserSelectedDb);
+    }
+  }, [setDatabase]);
+
   const setTable = (tableName: string) => {
     setDataset({
       type: DatasetActionType.SelectTable,

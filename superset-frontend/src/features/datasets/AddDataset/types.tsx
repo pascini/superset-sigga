@@ -23,6 +23,7 @@ export enum DatasetActionType {
   SelectCatalog,
   SelectSchema,
   SelectTable,
+  SelectView,
   ChangeDataset,
 }
 
@@ -54,6 +55,7 @@ export type DSReducerActionType =
         | DatasetActionType.ChangeDataset
         | DatasetActionType.SelectCatalog
         | DatasetActionType.SelectSchema
-        | DatasetActionType.SelectTable;
+        | DatasetActionType.SelectTable
+        | DatasetActionType.SelectView;
       payload: DatasetReducerPayloadType;
     };
