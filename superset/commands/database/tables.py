@@ -20,17 +20,14 @@ from __future__ import annotations
 import logging
 from typing import Any, cast
 
-from sqlalchemy.orm import lazyload, load_only
-
 from superset.commands.base import BaseCommand
 from superset.commands.database.exceptions import (
     DatabaseNotFoundError,
     DatabaseTablesUnexpectedError,
 )
-from superset.connectors.sqla.models import SqlaTable
 from superset.daos.database import DatabaseDAO
 from superset.exceptions import SupersetException
-from superset.extensions import db, security_manager
+from superset.extensions import security_manager
 from superset.models.core import Database
 
 logger = logging.getLogger(__name__)
@@ -54,20 +51,24 @@ class TablesDatabaseCommand(BaseCommand):
     def run(self) -> dict[str, Any]:
         self.validate()
         try:
-            tables = security_manager.get_datasources_accessible_by_user(
-                database=self._model,
-                catalog=self._catalog_name,
-                schema=self._schema_name,
-                datasource_names=sorted(
-                    self._model.get_all_table_names_in_schema(
-                        catalog=self._catalog_name,
-                        schema=self._schema_name,
-                        force=self._force,
-                        cache=self._model.table_cache_enabled,
-                        cache_timeout=self._model.table_cache_timeout,
-                    )
-                ),
-            )
+            # Adjust to not show tables, only views
+            tables = ""
+
+            # tables = security_manager.get_datasources_accessible_by_user(
+            #     database=self._model,
+            #     catalog=self._catalog_name,
+            #     schema=self._schema_name,
+            #     datasource_names=sorted(
+            #         self._model.get_all_table_names_in_schema(
+            #         # self._model.get_all_view_names_in_schema(
+            #             catalog=self._catalog_name,
+            #             schema=self._schema_name,
+            #             force=self._force,
+            #             cache=self._model.table_cache_enabled,
+            #             cache_timeout=self._model.table_cache_timeout,
+            #         )
+            #     ),
+            # )
 
             views = security_manager.get_datasources_accessible_by_user(
                 database=self._model,
@@ -84,38 +85,39 @@ class TablesDatabaseCommand(BaseCommand):
                 ),
             )
 
-            extra_dict_by_name = {
-                table.name: table.extra_dict
-                for table in (
-                    db.session.query(SqlaTable)
-                    .filter(
-                        SqlaTable.database_id == self._model.id,
-                        SqlaTable.catalog == self._catalog_name,
-                        SqlaTable.schema == self._schema_name,
-                    )
-                    .options(
-                        load_only(
-                            SqlaTable.catalog,
-                            SqlaTable.schema,
-                            SqlaTable.table_name,
-                            SqlaTable.extra,
-                        ),
-                        lazyload(SqlaTable.columns),
-                        lazyload(SqlaTable.metrics),
-                    )
-                ).all()
-            }
+            # extra_dict_by_name = {
+            #     table.name: table.extra_dict
+            #     for table in (
+            #         db.session.query(SqlaTable)
+            #         .filter(
+            #             SqlaTable.database_id == self._model.id,
+            #             SqlaTable.catalog == self._catalog_name,
+            #             SqlaTable.schema == self._schema_name,
+            #         )
+            #         .options(
+            #             load_only(
+            #                 SqlaTable.catalog,
+            #                 SqlaTable.schema,
+            #                 SqlaTable.table_name,
+            #                 SqlaTable.extra,
+            #             ),
+            #             lazyload(SqlaTable.columns),
+            #             lazyload(SqlaTable.metrics),
+            #         )
+            #     ).all()
+            # }
 
             options = sorted(
+                # [
+                #     {
+                #         "value": table.table,
+                #         "type": "table",
+                #         "extra": extra_dict_by_name.get(table.table, None),
+                #     }
+                #     for table in tables
+                # ]
+                # + [
                 [
-                    {
-                        "value": table.table,
-                        "type": "table",
-                        "extra": extra_dict_by_name.get(table.table, None),
-                    }
-                    for table in tables
-                ]
-                + [
                     {
                         "value": view.table,
                         "type": "view",

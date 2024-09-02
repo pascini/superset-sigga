@@ -1623,7 +1623,8 @@ def extract_tables_from_jinja_sql(sql: str, database: Database) -> set[Table]:
     return (
         tables
         | ParsedQuery(
-            sql_statement=processor.process_template(template),
+            # fix sqllab access issue. Fixes https://github.com/apache/superset/issues/28596
+            sql_statement=sql,
             engine=database.db_engine_spec.engine,
         ).tables
     )
