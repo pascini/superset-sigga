@@ -802,6 +802,9 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
                         inspector=inspector,
                         schema=schema,
                     )
+                    if view.startswith(
+                        "vw_ss"
+                    )  # Only views starting with that string with be retrieved
                 }
         except Exception as ex:
             raise self.db_engine_spec.get_dbapi_mapped_exception(ex) from ex
