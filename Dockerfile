@@ -22,7 +22,7 @@ ARG PY_VER=3.10-slim-bookworm
 
 # if BUILDPLATFORM is null, set it to 'amd64' (or leave as is otherwise).
 ARG BUILDPLATFORM=${BUILDPLATFORM:-amd64}
-FROM --platform=${BUILDPLATFORM} node:20-bullseye-slim AS superset-node
+FROM --platform=${BUILDPLATFORM} node:22.9.0-bullseye-slim AS superset-node
 
 ARG NPM_BUILD_CMD="build"
 
@@ -31,7 +31,7 @@ ARG NPM_BUILD_CMD="build"
 ARG DEV_MODE="false"
 
 # Include headless browsers? Allows for alerts, reports & thumbnails, but bloats the images
-ARG INCLUDE_CHROMIUM="true"
+ARG INCLUDE_CHROMIUM="false"
 ARG INCLUDE_FIREFOX="false"
 
 # Somehow we need python3 + build-essential on this side of the house to install node-gyp
@@ -53,30 +53,22 @@ WORKDIR /app/superset-frontend
 # Creating empty folders to avoid errors when running COPY later on
 RUN mkdir -p /app/superset/static/assets && mkdir -p /app/superset/translations
 RUN --mount=type=bind,target=./package.json,src=./superset-frontend/package.json \
-    --mount=type=bind,target=./package-lock.json,src=./superset-frontend/package-lock.json \
-    if [ "$DEV_MODE" = "false" ]; then \
-        npm ci; \
-    else \
-        echo "Skipping 'npm ci' in dev mode"; \
-    fi
+    --mount=type=bind,target=./package-lock.json,src=./superset-frontend/package-lock.json npm ci
 
 # Runs the webpack build process
 COPY superset-frontend /app/superset-frontend
-RUN if [ "$DEV_MODE" = "false" ]; then \
-        npm run ${BUILD_CMD}; \
-    else \
-        echo "Skipping 'npm run ${BUILD_CMD}' in dev mode"; \
-    fi
+RUN npm run build
 
 # This copies the .po files needed for translation
 RUN mkdir -p /app/superset/translations
 COPY superset/translations /app/superset/translations
 # Compiles .json files from the .po files, then deletes the .po files
-RUN if [ "$DEV_MODE" = "false" ]; then \
-        npm run build-translation; \
-    else \
-        echo "Skipping translations in dev mode"; \
-    fi
+#RUN if [ "$DEV_MODE" = "false" ]; then \
+RUN chmod +x /app/superset-frontend/scripts/po2json.sh
+RUN npm run build-translation
+#    else \
+#        echo "Skipping translations in dev mode"; \
+#    fi
 RUN rm /app/superset/translations/*/LC_MESSAGES/*.po
 RUN rm /app/superset/translations/messages.pot
 
