@@ -22,16 +22,20 @@ ARG PY_VER=3.10-slim-bookworm
 
 # if BUILDPLATFORM is null, set it to 'amd64' (or leave as is otherwise).
 ARG BUILDPLATFORM=${BUILDPLATFORM:-amd64}
-FROM --platform=${BUILDPLATFORM} node:22.9.0-bullseye-slim AS superset-node
+FROM --platform=${BUILDPLATFORM} node:20-bullseye-slim AS superset-node
 
 ARG NPM_BUILD_CMD="build"
+
+# Include translations in the final build. The default supports en only to
+# reduce complexity and weight for those only using en
+ARG BUILD_TRANSLATIONS="false"
 
 # Used by docker-compose to skip the frontend build,
 # in dev we mount the repo and build the frontend inside docker
 ARG DEV_MODE="false"
 
 # Include headless browsers? Allows for alerts, reports & thumbnails, but bloats the images
-ARG INCLUDE_CHROMIUM="false"
+ARG INCLUDE_CHROMIUM="true"
 ARG INCLUDE_FIREFOX="false"
 
 # Somehow we need python3 + build-essential on this side of the house to install node-gyp
@@ -50,25 +54,32 @@ RUN --mount=type=bind,target=/frontend-mem-nag.sh,src=./docker/frontend-mem-nag.
     /frontend-mem-nag.sh
 
 WORKDIR /app/superset-frontend
-# Creating empty folders to avoid errors when running COPY later on
-RUN mkdir -p /app/superset/static/assets && mkdir -p /app/superset/translations
-RUN --mount=type=bind,target=./package.json,src=./superset-frontend/package.json \
-    --mount=type=bind,target=./package-lock.json,src=./superset-frontend/package-lock.json npm ci
+# Create empty folders to avoid errors when running COPY later on
+RUN mkdir -p /app/superset/static/assets
+# Copy package.json and package-lock.json into the container
+COPY ./superset-frontend/package.json ./package.json
+COPY ./superset-frontend/package-lock.json ./package-lock.json
+RUN npm install
+
 
 # Runs the webpack build process
 COPY superset-frontend /app/superset-frontend
-RUN npm run build
-
 # This copies the .po files needed for translation
 RUN mkdir -p /app/superset/translations
 COPY superset/translations /app/superset/translations
+RUN if [ "$DEV_MODE" = "false" ]; then \
+        BUILD_TRANSLATIONS=$BUILD_TRANSLATIONS npm run ${BUILD_CMD}; \
+    else \
+        echo "Skipping 'npm run ${BUILD_CMD}' in dev mode"; \
+    fi
+
+
 # Compiles .json files from the .po files, then deletes the .po files
-#RUN if [ "$DEV_MODE" = "false" ]; then \
-RUN chmod +x /app/superset-frontend/scripts/po2json.sh
-RUN npm run build-translation
-#    else \
-#        echo "Skipping translations in dev mode"; \
-#    fi
+RUN if [ "$BUILD_TRANSLATIONS" = "true" ]; then \
+        npm run build-translation; \
+    else \
+        echo "Skipping translations as requested by build flag"; \
+    fi
 RUN rm /app/superset/translations/*/LC_MESSAGES/*.po
 RUN rm /app/superset/translations/messages.pot
 
@@ -76,6 +87,10 @@ RUN rm /app/superset/translations/messages.pot
 # Final lean image...
 ######################################################################
 FROM python:${PY_VER} AS lean
+
+# Include translations in the final build. The default supports en only to
+# reduce complexity and weight for those only using en
+ARG BUILD_TRANSLATIONS="false"
 
 WORKDIR /app
 ENV LANG=C.UTF-8 \
@@ -124,10 +139,14 @@ COPY --chown=superset:superset --from=superset-node /app/superset/translations s
 
 # Compile translations for the backend - this generates .mo files, then deletes the .po files
 COPY ./scripts/translations/generate_mo_files.sh ./scripts/translations/
-RUN ./scripts/translations/generate_mo_files.sh \
-    && chown -R superset:superset superset/translations \
-    && rm superset/translations/messages.pot \
-    && rm superset/translations/*/LC_MESSAGES/*.po
+RUN if [ "$BUILD_TRANSLATIONS" = "true" ]; then \
+        ./scripts/translations/generate_mo_files.sh \
+        && chown -R superset:superset superset/translations \
+        && rm superset/translations/messages.pot \
+        && rm superset/translations/*/LC_MESSAGES/*.po; \
+    else \
+        echo "Skipping translations as requested by build flag"; \
+    fi
 
 COPY --chmod=755 ./docker/run-server.sh /usr/bin/
 USER superset
