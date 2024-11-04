@@ -769,6 +769,10 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
                         inspector=inspector,
                         schema=schema,
                     )
+                    if table.startswith(
+                        "v_"
+                    )
+                    # Only tables starting with that string with be retrieved
                 }
         except Exception as ex:
             raise self.db_engine_spec.get_dbapi_mapped_exception(ex) from ex
@@ -805,7 +809,7 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
                     )
                     if view.startswith(
                         "v_"
-                    )  # Only tables and views starting with that string with be retrieved
+                    )  # Only views starting with that string with be retrieved
                 }
         except Exception as ex:
             raise self.db_engine_spec.get_dbapi_mapped_exception(ex) from ex
